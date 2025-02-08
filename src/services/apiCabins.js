@@ -7,27 +7,43 @@ export async function getCabins() {
   return data;
 }
 
-export async function createCabin(newCabin) {
+export async function createEditCabin(newCabin, id) {
   try {
-    // Generate safe image name
+    // Ensure the image path check works correctly
+    const isHasImagePath =
+      typeof newCabin.image === "string" &&
+      newCabin.image.startsWith(supabaseUrl);
+    // const isHasImagePath = newCabin.image?.startsWith(supabaseUrl);
     const imageName = `${Date.now()}-${newCabin.image.name}`.replaceAll(
       "/",
       ""
     );
-    const imagePath = `${supabaseUrl}/storage/v1/object/public/cabin-images/${imageName}`;
+    const imagePath = isHasImagePath
+      ? newCabin.image
+      : `${supabaseUrl}/storage/v1/object/public/cabin-images/${imageName}`;
 
-    // 1. Insert cabin data
-    const { data, error } = await supabase
-      .from("cabins")
-      .insert([{ ...newCabin, image: imagePath }])
-      .select();
+    let query = supabase.from("cabins");
+
+    let data, error;
+    if (!id) {
+      ({ data, error } = await query
+        .insert([{ ...newCabin, image: imagePath }])
+        .select("*"));
+    } else {
+      ({ data, error } = await query
+        .update({ ...newCabin, image: imagePath })
+        .eq("id", id)
+        .select("*"));
+    }
 
     if (error) {
-      console.error("Supabase Insert Error:", error);
+      console.error("Supabase Insert/Update Error:", error);
       throw new Error(error.message);
     }
 
-    // Extract the cabin ID correctly
+    console.log("Returned data:", data);
+
+    // Ensure the ID is present
     const cabinId = data?.[0]?.id;
     if (!cabinId) {
       throw new Error("Cabin creation failed, ID missing.");
@@ -38,7 +54,7 @@ export async function createCabin(newCabin) {
       .from("cabin-images")
       .upload(imageName, newCabin.image, {
         cacheControl: "3600",
-        upsert: false, // Prevent overwriting existing images
+        upsert: false,
       });
 
     if (storageError) {
@@ -46,7 +62,6 @@ export async function createCabin(newCabin) {
 
       // If upload fails, delete the cabin
       await supabase.from("cabins").delete().eq("id", cabinId);
-
       throw new Error(storageError.message);
     }
 

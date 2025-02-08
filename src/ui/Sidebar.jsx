@@ -1,6 +1,7 @@
 import styled from "styled-components";
 import Logo from "./Logo";
 import NavMenu from "./NavMenu";
+import { useCabins } from "../features/cabins/useCabins";
 
 const StyleSidebar = styled.aside`
   background-color: var(--color-grey-0);
@@ -13,6 +14,7 @@ const StyleSidebar = styled.aside`
   gap: 0.5rem;
 `;
 export default function Sidebar() {
+  const { isLoading, cabins } = useCabins();
   return (
     <StyleSidebar>
       <Logo />

@@ -1,40 +1,54 @@
 import styled from "styled-components";
-
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import toast from "react-hot-toast";
 import { useForm } from "react-hook-form";
-import { createCabin } from "../../services/apiCabins";
+
 import Input from "../../ui/Input";
 import Button from "../../ui/Button";
 import FormRow from "../../ui/FormRow";
-export default function CreateCabin() {
-  const Form = styled.form`
-    margin-top: 1rem;
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
-    padding: 20px;
-    max-width: fit-content;
-    margin: 0 auto;
-  `;
-  const queryClient = useQueryClient();
+import { useCreateCabin } from "./useCreateCabin";
+import { useUpdateCabin } from "./useUpdateCabin";
 
-  const { register, handleSubmit, reset, getValues, formState } = useForm();
+const Form = styled.form`
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 20px;
+  max-width: fit-content;
+  margin: 0 auto;
+`;
+export default function CreateCabin({ cabinEdit = {}, onCloseModal }) {
+  const { id: editId, ...editValues } = cabinEdit;
+  const isEditingForm = Boolean(editId);
+  const { isCreating, createCabinMutate } = useCreateCabin();
+  const { isEditing, updateCabinMutate } = useUpdateCabin();
+  const { register, handleSubmit, reset, getValues, formState } = useForm({
+    defaultValues: isEditingForm ? editValues : {},
+  });
   const { errors } = formState;
 
-  const { mutate, isLoading: isCreating } = useMutation({
-    mutationFn: createCabin,
-    onSuccess: () => {
-      queryClient.invalidateQueries("cabins");
-      toast.success("Cabin created successfully!");
-      reset();
-    },
-    onError: (error) => {
-      toast.error(`Error creating cabin: ${error.message}`);
-    },
-  });
+  const isWorking = isCreating || isEditing;
   function onSubmit(data) {
-    mutate({ ...data, image: data.image[0] });
+    const image = typeof data.image === "string" ? data.image : data.image[0];
+    if (isEditingForm)
+      updateCabinMutate(
+        { newCabinData: { ...data, image }, id: editId },
+        {
+          onSuccess: () => {
+            reset();
+            onCloseModal?.();
+          },
+        }
+      );
+    else
+      createCabinMutate(
+        { ...data, image: image },
+        {
+          onSuccess: () => {
+            reset();
+            onCloseModal?.();
+          },
+        }
+      );
   }
   return (
     <Form onSubmit={handleSubmit(onSubmit)}>
@@ -42,6 +56,7 @@ export default function CreateCabin() {
         <Input
           type="text"
           id="name"
+          disabled={isWorking}
           {...register("name", {
             required: "This field is required",
           })}
@@ -51,6 +66,7 @@ export default function CreateCabin() {
         <Input
           type="number"
           id="max_capacity"
+          disabled={isWorking}
           {...register("max_capacity", {
             required: "This field is required",
             min: {
@@ -64,6 +80,7 @@ export default function CreateCabin() {
         <Input
           type="number"
           id="regular_price"
+          disabled={isWorking}
           {...register("regular_price", {
             required: "This field is required",
             min: {
@@ -77,6 +94,7 @@ export default function CreateCabin() {
         <Input
           type="number"
           id="discount"
+          disabled={isWorking}
           {...register("discount", {
             required: "This field is required",
             validate: (value) =>
@@ -88,21 +106,33 @@ export default function CreateCabin() {
       <FormRow label="Description" error={errors?.description?.message}>
         <textarea
           id="description"
+          disabled={isWorking}
           {...register("description", {
             required: "This field is required",
           })}
         ></textarea>
       </FormRow>
-      <FormRow>
-        <label htmlFor="image">Cabin Photo</label>
-        <Input type="file" id="image" {...register("image")}></Input>
+      <FormRow label="Cabin Photo" error={errors?.image?.message}>
+        <Input
+          type="file"
+          id="image"
+          disabled={isWorking}
+          {...register("image", {
+            required: isEditingForm ? false : "This field is required",
+          })}
+        ></Input>
       </FormRow>
       <FormRow>
-        <Button size="small" variant="secondary" type="reset">
+        <Button
+          size="small"
+          variant="secondary"
+          type="reset"
+          onClick={() => onCloseModal?.()}
+        >
           Clear
         </Button>
-        <Button disabled={isCreating} size="small" type="submit">
-          Create Cabin
+        <Button disabled={isWorking} size="small" type="submit">
+          {isEditingForm ? "Edit cabin" : "Create Cabin"}
         </Button>
       </FormRow>
     </Form>
